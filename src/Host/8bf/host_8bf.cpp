@@ -91,7 +91,18 @@ namespace
         }
     }
 
-    bool FillTileBuffer(
+    enum class InputFileParseStatus
+    {
+        Ok,
+        FileOpenError,
+        BadFileSignature,
+        UnknownFileVersion,
+        InvalidArgument,
+        OutOfMemory,
+        EndOfFile
+    };
+
+    InputFileParseStatus FillTileBuffer(
         QDataStream& dataStream,
         const size_t& requiredSize,
         char* buffer)
@@ -106,16 +117,16 @@ namespace
 
             if (bytesRead <= 0)
             {
-                break;
+                return InputFileParseStatus::EndOfFile;
             }
 
             totalBytesRead += bytesRead;
         }
 
-        return totalBytesRead == requiredSize;
+        return InputFileParseStatus::Ok;
     }
 
-    bool CopyTileToQImage8Interleaved(
+    InputFileParseStatus CopyTileToQImage8Interleaved(
         char* tileBuffer,
         size_t tileBufferStride,
         int left,
@@ -154,7 +165,7 @@ namespace
                     dst[3] = src[3];
                     break;
                 default:
-                    return false;
+                    return InputFileParseStatus::InvalidArgument;
                 }
 
                 src += inNumberOfChannels;
@@ -162,10 +173,10 @@ namespace
             }
         }
 
-        return true;
+        return InputFileParseStatus::Ok;
     }
 
-    bool CopyTileToQImage8Planar(
+    InputFileParseStatus CopyTileToQImage8Planar(
         char* tileBuffer,
         size_t tileBufferStride,
         int left,
@@ -199,7 +210,7 @@ namespace
                         dst[3] = src[0];
                         break;
                     default:
-                        return false;
+                        return InputFileParseStatus::InvalidArgument;
                     }
                 }
                 else
@@ -211,10 +222,10 @@ namespace
             }
         }
 
-        return true;
+        return InputFileParseStatus::Ok;
     }
 
-    bool ConvertGmic8bfInputToQImage8(
+    InputFileParseStatus ConvertGmic8bfInputToQImage8(
         QDataStream& dataStream,
         int32_t inTileWidth,
         int32_t inTileHeight,
@@ -229,7 +240,7 @@ namespace
 
         if (!tileBuffer)
         {
-            return false;
+            return InputFileParseStatus::OutOfMemory;
         }
 
         int width = image.width();
@@ -248,7 +259,7 @@ namespace
             outColumnStep = 4;
             break;
         default:
-            return false;
+            return InputFileParseStatus::InvalidArgument;
         }
 
         if (planar)
@@ -270,12 +281,14 @@ namespace
                         size_t tileBufferStride = static_cast<size_t>(right) - left;
                         size_t bytesToRead = tileBufferStride * rowCount;
 
-                        if (!FillTileBuffer(dataStream, bytesToRead, tileBuffer.get()))
+                        InputFileParseStatus status = FillTileBuffer(dataStream, bytesToRead, tileBuffer.get());
+
+                        if (status != InputFileParseStatus::Ok)
                         {
-                            return false;
+                            return status;
                         }
 
-                        if (!CopyTileToQImage8Planar(
+                        status = CopyTileToQImage8Planar(
                             tileBuffer.get(),
                             tileBufferStride,
                             left,
@@ -285,9 +298,11 @@ namespace
                             inNumberOfChannels,
                             i,
                             outColumnStep,
-                            image))
+                            image);
+
+                        if (status != InputFileParseStatus::Ok)
                         {
-                            return false;
+                            return status;
                         }
                     }
                 }
@@ -311,12 +326,14 @@ namespace
                     size_t tileBufferStride = columnCount * inNumberOfChannels;
                     size_t bytesToRead = tileBufferStride * rowCount;
 
-                    if (!FillTileBuffer(dataStream, bytesToRead, tileBuffer.get()))
+                    InputFileParseStatus status = FillTileBuffer(dataStream, bytesToRead, tileBuffer.get());
+
+                    if (status != InputFileParseStatus::Ok)
                     {
-                        return false;
+                        return status;
                     }
 
-                    if (!CopyTileToQImage8Interleaved(
+                    status = CopyTileToQImage8Interleaved(
                         tileBuffer.get(),
                         tileBufferStride,
                         left,
@@ -325,18 +342,20 @@ namespace
                         bottom,
                         inNumberOfChannels,
                         outColumnStep,
-                        image))
+                        image);
+
+                    if (status != InputFileParseStatus::Ok)
                     {
-                        return false;
+                        return status;
                     }
                 }
             }
         }
 
-        return true;
+        return InputFileParseStatus::Ok;
     }
 
-    bool CopyTileToQImage16Interleaved(
+    InputFileParseStatus CopyTileToQImage16Interleaved(
         char* tileBuffer,
         size_t tileBufferStride,
         int left,
@@ -375,17 +394,17 @@ namespace
                     dst[3] = qFromLittleEndian(src[3]);
                     break;
                 default:
-                    return false;
+                    return InputFileParseStatus::InvalidArgument;
                 }
                 src += inNumberOfChannels;
                 dst += outColumnStep;
             }
         }
 
-        return true;
+        return InputFileParseStatus::Ok;
     }
 
-    bool CopyTileToQImage16Planar(
+    InputFileParseStatus CopyTileToQImage16Planar(
         char* tileBuffer,
         size_t tileBufferStride,
         int left,
@@ -419,7 +438,7 @@ namespace
                         dst[3] = qFromLittleEndian(src[0]);
                         break;
                     default:
-                        return false;
+                        return InputFileParseStatus::InvalidArgument;
                     }
                 }
                 else
@@ -431,10 +450,10 @@ namespace
             }
         }
 
-        return true;
+        return InputFileParseStatus::Ok;
     }
 
-    bool ConvertGmic8bfInputToQImage16(
+    InputFileParseStatus ConvertGmic8bfInputToQImage16(
         QDataStream& dataStream,
         int32_t inTileWidth,
         int32_t inTileHeight,
@@ -449,7 +468,7 @@ namespace
 
         if (!tileBuffer)
         {
-            return false;
+            return InputFileParseStatus::OutOfMemory;
         }
 
         int width = image.width();
@@ -466,7 +485,7 @@ namespace
             outColumnStep = 4;
             break;
         default:
-            return false;
+            return InputFileParseStatus::InvalidArgument;
         }
 
         if (planar)
@@ -488,12 +507,14 @@ namespace
                         size_t tileBufferStride = static_cast<size_t>(right) - left;
                         size_t bytesToRead = tileBufferStride * rowCount * 2;
 
-                        if (!FillTileBuffer(dataStream, bytesToRead, tileBuffer.get()))
+                        InputFileParseStatus status = FillTileBuffer(dataStream, bytesToRead, tileBuffer.get());
+
+                        if (status != InputFileParseStatus::Ok)
                         {
-                            return false;
+                            return status;
                         }
 
-                        if (!CopyTileToQImage16Planar(
+                        status = CopyTileToQImage16Planar(
                             tileBuffer.get(),
                             tileBufferStride,
                             left,
@@ -503,9 +524,11 @@ namespace
                             inNumberOfChannels,
                             i,
                             outColumnStep,
-                            image))
+                            image);
+
+                        if (status != InputFileParseStatus::Ok)
                         {
-                            return false;
+                            return status;
                         }
                     }
                 }
@@ -529,12 +552,14 @@ namespace
                     size_t tileBufferStride = columnCount * inNumberOfChannels;
                     size_t bytesToRead = tileBufferStride * rowCount * 2;
 
-                    if (!FillTileBuffer(dataStream, bytesToRead, tileBuffer.get()))
+                    InputFileParseStatus status = FillTileBuffer(dataStream, bytesToRead, tileBuffer.get());
+
+                    if (status != InputFileParseStatus::Ok)
                     {
-                        return false;
+                        return status;
                     }
 
-                    if (!CopyTileToQImage16Interleaved(
+                    status = CopyTileToQImage16Interleaved(
                         tileBuffer.get(),
                         tileBufferStride,
                         left,
@@ -543,24 +568,26 @@ namespace
                         bottom,
                         inNumberOfChannels,
                         outColumnStep,
-                        image))
+                        image);
+
+                    if (status != InputFileParseStatus::Ok)
                     {
-                        return false;
+                        return status;
                     }
                 }
             }
         }
 
-        return true;
+        return InputFileParseStatus::Ok;
     }
 
-    QImage ReadGmic8bfInput(const QString& path)
+    InputFileParseStatus ReadGmic8bfInput(const QString& path, QImage& image)
     {
         QFile file(path);
 
         if (!file.open(QIODevice::ReadOnly))
         {
-            return QImage();
+            return InputFileParseStatus::FileOpenError;
         }
 
         QDataStream dataStream(&file);
@@ -572,7 +599,7 @@ namespace
 
         if (strncmp(signature, "G8II", 4) != 0)
         {
-            return QImage();
+            return InputFileParseStatus::BadFileSignature;
         }
 
         int32_t fileVersion = 0;
@@ -581,7 +608,7 @@ namespace
 
         if (fileVersion != 1 && fileVersion != 2)
         {
-            return QImage();
+            return InputFileParseStatus::UnknownFileVersion;
         }
 
         int32_t width = 0;
@@ -631,39 +658,39 @@ namespace
             format = bitDepth == 16 ? QImage::Format_RGBA64 : QImage::Format_RGBA8888;
             break;
         default:
-            return QImage();
+            return InputFileParseStatus::InvalidArgument;
         }
 
-        QImage image(width, height, format);
+        image = QImage(width, height, format);
 
-        if (!image.isNull())
+        InputFileParseStatus status = InputFileParseStatus::Ok;
+
+        if (image.isNull())
+        {
+            status = InputFileParseStatus::OutOfMemory;
+        }
+        else
         {
             if (bitDepth == 16)
             {
-                if (!ConvertGmic8bfInputToQImage16(dataStream, inTileWidth, inTileHeight, numberOfChannels, planar, image))
-                {
-                    return QImage();
-                }
+                status = ConvertGmic8bfInputToQImage16(dataStream, inTileWidth, inTileHeight, numberOfChannels, planar, image);
             }
             else
             {
-                if (!ConvertGmic8bfInputToQImage8(dataStream, inTileWidth, inTileHeight, numberOfChannels, planar, image))
-                {
-                    return QImage();
-                }
+                status = ConvertGmic8bfInputToQImage8(dataStream, inTileWidth, inTileHeight, numberOfChannels, planar, image);
             }
         }
 
-        return image;
+        return status;
     }
 
-    bool ParseInputFileIndex(const QString& indexFilePath)
+    InputFileParseStatus ParseInputFileIndex(const QString& indexFilePath)
     {
         QFile file(indexFilePath);
 
         if (!file.open(QIODevice::ReadOnly))
         {
-            return false;
+            return InputFileParseStatus::FileOpenError;
         }
 
         QDataStream dataStream(&file);
@@ -675,7 +702,7 @@ namespace
 
         if (strncmp(signature, "G8IX", 4) != 0)
         {
-            return false;
+            return InputFileParseStatus::BadFileSignature;
         }
 
         int32_t fileVersion = 0;
@@ -684,7 +711,7 @@ namespace
 
         if (fileVersion < 1 || fileVersion > 3)
         {
-            return false;
+            return InputFileParseStatus::UnknownFileVersion;
         }
 
         int32_t layerCount = 0;
@@ -726,11 +753,13 @@ namespace
 
             QString filePath = ReadUTF8String(dataStream);
 
-            QImage image = ReadGmic8bfInput(filePath);
+            QImage image;
 
-            if (image.isNull())
+            InputFileParseStatus status = ReadGmic8bfInput(filePath, image);
+
+            if (status != InputFileParseStatus::Ok)
             {
-                return false;
+                return status;
             }
 
             Gmic8bfLayer layer{};
@@ -754,9 +783,11 @@ namespace
                 auto name = imagePath.toStdWString();
 #endif
 
-                QImage image = ReadGmic8bfInput(imagePath);
+                QImage image;
 
-                if (!image.isNull())
+                InputFileParseStatus status = ReadGmic8bfInput(imagePath, image);
+
+                if (status == InputFileParseStatus::Ok && !image.isNull())
                 {
                     Gmic8bfLayer layer{};
                     layer.width = image.width();
@@ -770,7 +801,7 @@ namespace
             }
         }
 
-        return true;
+        return InputFileParseStatus::Ok;
     }
 
     QVector<Gmic8bfLayer> FilterLayersForInputMode(GmicQt::InputMode mode)
@@ -1424,21 +1455,47 @@ int main(int argc, char *argv[])
         return 3;
     }
 
-    if (!ParseInputFileIndex(indexFilePath))
+    try
     {
-        return 4;
-    }
+        InputFileParseStatus status = ParseInputFileIndex(indexFilePath);
 
-    if (host_8bf::sixteenBitsPerChannel)
-    {
-        host_8bf::sixteenBitToEightBitLUT.reserve(65536);
-
-        for (int i = 0; i < host_8bf::sixteenBitToEightBitLUT.capacity(); i++)
+        // The return value 5 is skipped because it is already being used to
+        // indicate that the user canceled the dialog.
+        switch (status)
         {
-            // G'MIC expect the input image data to be a floating-point value in the range of [0, 255].
-            // We use a lookup table to avoid having to repeatedly perform division on the same values.
-            host_8bf::sixteenBitToEightBitLUT.push_back(static_cast<float>(i) / 257.0f);
+        case InputFileParseStatus::Ok:
+            // No error
+            break;
+        case InputFileParseStatus::FileOpenError:
+            return 6;
+        case InputFileParseStatus::BadFileSignature:
+        case InputFileParseStatus::InvalidArgument:
+            return 7;
+        case InputFileParseStatus::UnknownFileVersion:
+            return 8;
+        case InputFileParseStatus::OutOfMemory:
+            return 9;
+        case InputFileParseStatus::EndOfFile:
+            return 10;
+        default:
+            return 4; // Unknown error
         }
+
+        if (host_8bf::sixteenBitsPerChannel)
+        {
+            host_8bf::sixteenBitToEightBitLUT.reserve(65536);
+
+            for (int i = 0; i < host_8bf::sixteenBitToEightBitLUT.capacity(); i++)
+            {
+                // G'MIC expect the input image data to be a floating-point value in the range of [0, 255].
+                // We use a lookup table to avoid having to repeatedly perform division on the same values.
+                host_8bf::sixteenBitToEightBitLUT.push_back(static_cast<float>(i) / 257.0f);
+            }
+        }
+    }
+    catch (const std::bad_alloc&)
+    {
+        return 9;
     }
 
     int exitCode = 0;
