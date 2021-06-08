@@ -1827,7 +1827,7 @@ int main(int argc, char *argv[])
     {
         GmicQt::RunParameters parameters;
         parameters = GmicQt::lastAppliedFilterRunParameters(GmicQt::ReturnedRunParametersFlag::AfterFilterExecution);
-        exitCode = GmicQt::run(GmicQt::UserInterfaceMode::Full,
+        exitCode = GmicQt::run(GmicQt::UserInterfaceMode::ProgressDialog,
                                parameters,
                                disabledInputModes,
                                disabledOutputModes,
